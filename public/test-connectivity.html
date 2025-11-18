@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test de Conectividad API - Flores D'Jazmin</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .loading { background-color: #d1ecf1; color: #0c5460; }
+        button { margin: 10px 0; padding: 10px 20px; }
+        pre { background: #f8f9fa; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🌸 Test de Conectividad API - Flores D'Jazmin</h1>
+
+    <button onclick="testAllAPIs()">🚀 Probar Todas las APIs</button>
+    <button onclick="clearResults()">🧹 Limpiar Resultados</button>
+
+    <div id="results"></div>
+
+    <script>
+        const API_BASE = window.location.origin + '/api/v1';
+
+        const tests = [
+            {
+                name: '🏠 Test Básico API',
+                url: window.location.origin + '/api/test-api.php',
+                description: 'Verificar conectividad básica'
+            },
+            {
+                name: '📁 Categorías',
+                url: API_BASE + '/catalog/categories',
+                description: 'Listar todas las categorías'
+            },
+            {
+                name: '🌸 Flores en Oferta',
+                url: API_BASE + '/catalog/flowers/on-sale',
+                description: 'Flores con descuento'
+            },
+            {
+                name: '🌟 Flores Destacadas',
+                url: API_BASE + '/catalog/flowers/featured',
+                description: 'Flores marcadas como destacadas'
+            },
+            {
+                name: '🌸 Todas las Flores',
+                url: API_BASE + '/catalog/flowers',
+                description: 'Lista completa de flores'
+            },
+            {
+                name: '🎁 Complementos',
+                url: API_BASE + '/catalog/complements',
+                description: 'Lista de complementos'
+            }
+        ];
+
+        async function testAPI(test) {
+            const resultDiv = document.getElementById('results');
+            const testDiv = document.createElement('div');
+            testDiv.className = 'test loading';
+            testDiv.id = 'test-' + tests.indexOf(test);
+            testDiv.innerHTML = `
+                <h3>${test.name}</h3>
+                <p><strong>URL:</strong> ${test.url}</p>
+                <p><strong>Descripción:</strong> ${test.description}</p>
+                <p>⏳ Probando...</p>
+            `;
+            resultDiv.appendChild(testDiv);
+
+            try {
+                const response = await fetch(test.url);
+                const contentType = response.headers.get('content-type');
+
+                let responseText = '';
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    responseText = JSON.stringify(data, null, 2);
+                } else {
+                    responseText = await response.text();
+                }
+
+                if (response.ok) {
+                    testDiv.className = 'test success';
+                    testDiv.innerHTML = `
+                        <h3>✅ ${test.name}</h3>
+                        <p><strong>URL:</strong> ${test.url}</p>
+                        <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                        <p><strong>Content-Type:</strong> ${contentType || 'No especificado'}</p>
+                        <details>
+                            <summary>📄 Ver Respuesta</summary>
+                            <pre>${responseText}</pre>
+                        </details>
+                    `;
+                } else {
+                    testDiv.className = 'test error';
+                    testDiv.innerHTML = `
+                        <h3>❌ ${test.name}</h3>
+                        <p><strong>URL:</strong> ${test.url}</p>
+                        <p><strong>Error:</strong> ${response.status} ${response.statusText}</p>
+                        <p><strong>Content-Type:</strong> ${contentType || 'No especificado'}</p>
+                        <details>
+                            <summary>📄 Ver Respuesta de Error</summary>
+                            <pre>${responseText}</pre>
+                        </details>
+                    `;
+                }
+            } catch (error) {
+                testDiv.className = 'test error';
+                testDiv.innerHTML = `
+                    <h3>💥 ${test.name}</h3>
+                    <p><strong>URL:</strong> ${test.url}</p>
+                    <p><strong>Error de Red:</strong> ${error.message}</p>
+                    <p>Posibles causas:</p>
+                    <ul>
+                        <li>CORS no configurado correctamente</li>
+                        <li>Backend no disponible</li>
+                        <li>URL incorrecta</li>
+                        <li>Firewall bloqueando</li>
+                    </ul>
+                `;
+            }
+        }
+
+        async function testAllAPIs() {
+            document.getElementById('results').innerHTML = '<h2>🔄 Ejecutando Tests...</h2>';
+
+            for (let i = 0; i < tests.length; i++) {
+                await testAPI(tests[i]);
+                // Pequeña pausa entre tests
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            // Añadir resumen al final
+            const resultDiv = document.getElementById('results');
+            const summaryDiv = document.createElement('div');
+            summaryDiv.innerHTML = `
+                <h2>📊 Resumen de Tests</h2>
+                <p><strong>Total tests ejecutados:</strong> ${tests.length}</p>
+                <p><strong>Exitosos:</strong> <span style="color: green;">${document.querySelectorAll('.success').length}</span></p>
+                <p><strong>Fallidos:</strong> <span style="color: red;">${document.querySelectorAll('.error').length}</span></p>
+                <p><strong>Fecha:</strong> ${new Date().toLocaleString()}</p>
+
+                <h3>📋 Próximos pasos si hay errores:</h3>
+                <ol>
+                    <li>Verificar que el backend esté subido correctamente</li>
+                    <li>Revisar configuración de .htaccess</li>
+                    <li>Verificar variables de entorno (.env)</li>
+                    <li>Ejecutar migraciones de base de datos</li>
+                    <li>Revisar logs del servidor</li>
+                    <li>Verificar permisos de archivos (755 para directorios, 644 para archivos)</li>
+                </ol>
+            `;
+            resultDiv.appendChild(summaryDiv);
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        // Ejecutar test automáticamente al cargar la página
+        window.addEventListener('load', function() {
+            setTimeout(testAllAPIs, 1000);
+        });
+    </script>
+</body>
+</html>

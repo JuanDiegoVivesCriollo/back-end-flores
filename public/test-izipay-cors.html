@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnóstico de Pago - Izipay</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f8fafc;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .status {
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .warning { background: #fefce8; color: #ca8a04; border: 1px solid #fde68a; }
+        .info { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+
+        .test-section {
+            margin: 20px 0;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 4px;
+        }
+
+        button:hover { background: #2563eb; }
+        button:disabled { background: #9ca3af; cursor: not-allowed; }
+
+        pre {
+            background: #f3f4f6;
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+
+        .domain-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 16px 0;
+        }
+
+        @media (max-width: 640px) {
+            .domain-info { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Diagnóstico de Pago Izipay</h1>
+        <p>Herramienta de diagnóstico para resolver problemas CORS con dominios punycode</p>
+
+        <div class="domain-info">
+            <div>
+                <h3>Información del Dominio</h3>
+                <div id="domain-info"></div>
+            </div>
+            <div>
+                <h3>Estado del Navegador</h3>
+                <div id="browser-info"></div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🌐 Test 1: Conectividad con Izipay</h3>
+            <button onclick="testIzipayConnectivity()">Probar Conectividad</button>
+            <div id="connectivity-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 Test 2: Carga del SDK de Izipay</h3>
+            <button onclick="testSDKLoad()">Cargar SDK</button>
+            <button onclick="clearSDK()" id="clear-sdk" disabled>Limpiar SDK</button>
+            <div id="sdk-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Test 3: Formulario de Pago con Token</h3>
+            <input type="text" id="test-token" placeholder="Pegar token de prueba aquí..." style="width: 100%; padding: 8px; margin: 8px 0;">
+            <button onclick="testPaymentForm()">Probar Formulario</button>
+            <div id="form-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🚀 Test 4: Método Iframe (Alternativo)</h3>
+            <button onclick="testIframeMethod()">Probar Iframe</button>
+            <div id="iframe-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Log de Eventos</h3>
+            <button onclick="clearLog()">Limpiar Log</button>
+            <pre id="event-log" style="min-height: 150px; max-height: 300px; overflow-y: auto;"></pre>
+        </div>
+    </div>
+
+    <script>
+        let eventLog = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            eventLog.push(logEntry);
+            updateLogDisplay();
+
+            console.log(logEntry);
+
+            // También mostrar en la consola del navegador con estilo
+            const styles = {
+                info: 'color: #3b82f6',
+                success: 'color: #10b981',
+                error: 'color: #ef4444',
+                warning: 'color: #f59e0b'
+            };
+            console.log(`%c${logEntry}`, styles[type] || styles.info);
+        }
+
+        function updateLogDisplay() {
+            document.getElementById('event-log').textContent = eventLog.slice(-50).join('\n');
+        }
+
+        function clearLog() {
+            eventLog = [];
+            updateLogDisplay();
+        }
+
+        function showResult(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // Información inicial
+        function initializeDiagnostic() {
+            const hostname = window.location.hostname;
+            const isPunycode = hostname.includes('xn--');
+            const protocol = window.location.protocol;
+
+            document.getElementById('domain-info').innerHTML = `
+                <div class="status ${isPunycode ? 'warning' : 'info'}">
+                    <strong>Dominio:</strong> ${hostname}<br>
+                    <strong>Protocolo:</strong> ${protocol}<br>
+                    <strong>Es Punycode:</strong> ${isPunycode ? 'Sí' : 'No'}<br>
+                    <strong>URL Completa:</strong> ${window.location.href}
+                </div>
+            `;
+
+            document.getElementById('browser-info').innerHTML = `
+                <div class="status info">
+                    <strong>User Agent:</strong> ${navigator.userAgent.substring(0, 50)}...<br>
+                    <strong>Idioma:</strong> ${navigator.language}<br>
+                    <strong>Cookies:</strong> ${navigator.cookieEnabled ? 'Habilitadas' : 'Deshabilitadas'}<br>
+                    <strong>Local Storage:</strong> ${typeof(Storage) !== "undefined" ? 'Disponible' : 'No disponible'}
+                </div>
+            `;
+
+            log('Diagnóstico inicializado');
+            log(`Dominio actual: ${hostname} (Punycode: ${isPunycode})`);
+        }
+
+        async function testIzipayConnectivity() {
+            log('Iniciando test de conectividad...');
+
+            const testUrls = [
+                'https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js',
+                'https://secure.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js',
+                'https://api.micuentaweb.pe',
+                'https://api-pw.izipay.pe'
+            ];
+
+            let results = [];
+
+            for (const url of testUrls) {
+                try {
+                    log(`Probando: ${url}`);
+                    const response = await fetch(url, {
+                        method: 'HEAD',
+                        mode: 'no-cors',
+                        cache: 'no-cache'
+                    });
+
+                    results.push(`✅ ${url}: Accesible`);
+                    log(`Conectividad OK: ${url}`, 'success');
+                } catch (error) {
+                    results.push(`❌ ${url}: Error - ${error.message}`);
+                    log(`Error de conectividad: ${url} - ${error.message}`, 'error');
+                }
+            }
+
+            showResult('connectivity-result', results.join('<br>'), 'info');
+        }
+
+        async function testSDKLoad() {
+            log('Iniciando carga del SDK de Izipay...');
+
+            // Limpiar SDK anterior si existe
+            clearSDK();
+
+            try {
+                const script = document.createElement('script');
+                script.src = 'https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js';
+                script.setAttribute('kr-public-key', '64777864:publickey_aOhfLdRhf3p1TY1q0LGTM5LKyfUBGYEP5qcQzNkbPGLiW');
+                script.crossOrigin = 'anonymous';
+                script.defer = true;
+                script.id = 'izipay-sdk';
+
+                const loadPromise = new Promise((resolve, reject) => {
+                    script.onload = () => {
+                        log('SDK cargado exitosamente', 'success');
+                        resolve(true);
+                    };
+                    script.onerror = (error) => {
+                        log(`Error cargando SDK: ${error}`, 'error');
+                        reject(error);
+                    };
+                });
+
+                document.head.appendChild(script);
+                await loadPromise;
+
+                // Verificar que KR esté disponible
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                if (typeof window.KR !== 'undefined') {
+                    showResult('sdk-result', '✅ SDK de Izipay cargado correctamente. Objeto KR disponible.', 'success');
+                    document.getElementById('clear-sdk').disabled = false;
+                } else {
+                    showResult('sdk-result', '⚠️ SDK cargado pero objeto KR no disponible. Posible problema CORS.', 'warning');
+                }
+
+            } catch (error) {
+                log(`Error crítico cargando SDK: ${error.message}`, 'error');
+                showResult('sdk-result', `❌ Error cargando SDK: ${error.message}`, 'error');
+            }
+        }
+
+        function clearSDK() {
+            const existingScript = document.getElementById('izipay-sdk');
+            if (existingScript) {
+                existingScript.remove();
+                log('SDK anterior eliminado', 'info');
+            }
+
+            // Limpiar objeto KR
+            if (typeof window.KR !== 'undefined') {
+                delete window.KR;
+                log('Objeto KR eliminado', 'info');
+            }
+
+            document.getElementById('clear-sdk').disabled = true;
+            showResult('sdk-result', 'SDK limpiado', 'info');
+        }
+
+        async function testPaymentForm() {
+            const token = document.getElementById('test-token').value.trim();
+
+            if (!token) {
+                showResult('form-result', '❌ Por favor ingresa un token de prueba', 'error');
+                return;
+            }
+
+            log('Iniciando test de formulario de pago...');
+
+            try {
+                if (typeof window.KR === 'undefined') {
+                    throw new Error('SDK de Izipay no está cargado');
+                }
+
+                // Crear un contenedor temporal para el formulario
+                const formContainer = document.createElement('div');
+                formContainer.id = 'temp-payment-form';
+                formContainer.className = 'kr-embedded';
+                formContainer.style.cssText = 'margin: 16px 0; padding: 16px; border: 1px solid #e5e7eb; border-radius: 6px;';
+
+                document.getElementById('form-result').appendChild(formContainer);
+
+                // Configurar el formulario
+                window.KR.setFormConfig({
+                    formToken: token,
+                    'kr-language': 'es-ES',
+                    'kr-clear-on-error': 'true'
+                });
+
+                // Crear el formulario
+                await window.KR.addForm('#temp-payment-form');
+
+                log('Formulario de pago creado exitosamente', 'success');
+                showResult('form-result', '✅ Formulario de pago cargado correctamente', 'success');
+
+                // Agregar el contenedor después del mensaje de éxito
+                const successMsg = document.querySelector('#form-result .status');
+                if (successMsg && successMsg.nextSibling !== formContainer) {
+                    successMsg.parentNode.insertBefore(formContainer, successMsg.nextSibling);
+                }
+
+            } catch (error) {
+                log(`Error creando formulario: ${error.message}`, 'error');
+                showResult('form-result', `❌ Error: ${error.message}`, 'error');
+
+                // Limpiar contenedor temporal si existe
+                const tempContainer = document.getElementById('temp-payment-form');
+                if (tempContainer) {
+                    tempContainer.remove();
+                }
+            }
+        }
+
+        async function testIframeMethod() {
+            log('Iniciando test de método iframe...');
+
+            try {
+                const token = document.getElementById('test-token').value.trim();
+                if (!token) {
+                    showResult('iframe-result', '❌ Necesitas un token para probar el método iframe', 'error');
+                    return;
+                }
+
+                // Crear el HTML del iframe de manera más segura
+                const iframeHtml = [
+                    '<!DOCTYPE html>',
+                    '<html>',
+                    '<head>',
+                    '<meta charset="UTF-8">',
+                    '<title>Prueba Iframe Izipay</title>',
+                    '<style>',
+                    'body { font-family: sans-serif; padding: 20px; }',
+                    '.kr-embedded { margin-top: 20px; }',
+                    '</style>',
+                    '</head>',
+                    '<body>',
+                    '<h3>Formulario de Pago en Iframe</h3>',
+                    '<div class="kr-embedded" id="payment-form"></div>',
+                    '<' + 'script src="https://secure.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js"',
+                    ' kr-public-key="64777864:publickey_aOhfLdRhf3p1TY1q0LGTM5LKyfUBGYEP5qcQzNkbPGLiW">',
+                    '</' + 'script>',
+                    '<' + 'script>',
+                    'window.addEventListener("DOMContentLoaded", function() {',
+                    '  if (typeof KR !== "undefined") {',
+                    '    KR.setFormConfig({',
+                    '      formToken: "' + token + '",',
+                    '      "kr-language": "es-ES"',
+                    '    });',
+                    '    KR.addForm("#payment-form").then(function() {',
+                    '      console.log("Formulario iframe cargado");',
+                    '      if (window.parent !== window) {',
+                    '        window.parent.postMessage({type: "IFRAME_READY"}, "*");',
+                    '      }',
+                    '    }).catch(function(error) {',
+                    '      console.error("Error en iframe:", error);',
+                    '      if (window.parent !== window) {',
+                    '        window.parent.postMessage({type: "IFRAME_ERROR", error: error.message}, "*");',
+                    '      }',
+                    '    });',
+                    '  }',
+                    '});',
+                    '</' + 'script>',
+                    '</body>',
+                    '</html>'
+                ].join('\n');
+
+                const iframe = document.createElement('iframe');
+                iframe.style.cssText = 'width: 100%; height: 400px; border: 1px solid #e5e7eb; border-radius: 6px; margin-top: 16px;';
+
+                const blob = new Blob([iframeHtml], { type: 'text/html' });
+                const blobUrl = URL.createObjectURL(blob);
+                iframe.src = blobUrl;
+
+                // Escuchar mensajes del iframe
+                const messageHandler = (event) => {
+                    if (event.data?.type === 'IFRAME_READY') {
+                        log('Iframe cargado exitosamente', 'success');
+                        showResult('iframe-result', '✅ Método iframe funcionando correctamente', 'success');
+                    } else if (event.data?.type === 'IFRAME_ERROR') {
+                        log(`Error en iframe: ${event.data.error}`, 'error');
+                        showResult('iframe-result', `❌ Error en iframe: ${event.data.error}`, 'error');
+                    }
+                };
+
+                window.addEventListener('message', messageHandler);
+
+                showResult('iframe-result', '🔄 Cargando iframe...', 'info');
+                document.getElementById('iframe-result').appendChild(iframe);
+
+                // Timeout para el iframe
+                setTimeout(() => {
+                    window.removeEventListener('message', messageHandler);
+                    if (!document.querySelector('#iframe-result .status.success')) {
+                        log('Timeout: iframe no respondió', 'warning');
+                    }
+                }, 10000);
+
+            } catch (error) {
+                log(`Error en método iframe: ${error.message}`, 'error');
+                showResult('iframe-result', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Inicializar diagnóstico al cargar la página
+        document.addEventListener('DOMContentLoaded', initializeDiagnostic);
+
+        // Detectar errores CORS
+        window.addEventListener('error', function(event) {
+            if (event.message && event.message.includes('CORS')) {
+                log(`Error CORS detectado: ${event.message}`, 'error');
+            }
+        });
+
+        // Detectar cambios en el hash para troubleshooting
+        window.addEventListener('hashchange', function() {
+            log(`Hash cambiado: ${window.location.hash}`, 'info');
+        });
+    </script>
+</body>
+</html>

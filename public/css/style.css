@@ -1,0 +1,124 @@
+/* Estilos personalizados para Izipay Pop-in */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+}
+
+.navbar-brand img {
+    max-height: 40px;
+}
+
+.payment-form,
+.result-form {
+    background: white;
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    margin-top: 2rem;
+}
+
+.center-column {
+    margin-top: 2rem;
+}
+
+/* Personalizaciones para el pop-in de Izipay */
+.kr-embedded {
+    min-height: 200px;
+}
+
+/* Botón personalizado */
+.btn-primary {
+    background-color: #e91e63;
+    border-color: #e91e63;
+}
+
+.btn-primary:hover {
+    background-color: #c2185b;
+    border-color: #c2185b;
+}
+
+/* Alertas personalizadas */
+.alert-success {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    border-color: #ffecb5;
+    color: #856404;
+}
+
+.alert-info {
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+    color: #0c5460;
+}
+
+/* Detalles del pago */
+.payment-details {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 5px;
+    margin: 1rem 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .center-column {
+        margin-top: 1rem;
+    }
+
+    .payment-form,
+    .result-form {
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+}
+
+/* Estilos para el formulario de prueba */
+.form-group label {
+    font-weight: 600;
+    color: #333;
+}
+
+.form-control:focus {
+    border-color: #e91e63;
+    box-shadow: 0 0 0 0.2rem rgba(233, 30, 99, 0.25);
+}
+
+/* Loading spinner */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, .3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Personalización del pop-in */
+.kr-popin-button {
+    background-color: #e91e63 !important;
+    border-color: #e91e63 !important;
+    padding: 12px 24px !important;
+    font-size: 16px !important;
+    border-radius: 5px !important;
+}
+
+.kr-popin-button:hover {
+    background-color: #c2185b !important;
+    border-color: #c2185b !important;
+}

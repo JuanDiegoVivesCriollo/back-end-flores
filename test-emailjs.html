@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test EmailJS - Flores y Detalles</title>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+</head>
+<body>
+    <h2>🧪 Test de Configuración EmailJS</h2>
+    <div id="status">Preparando test...</div>
+    <button onclick="testEmailJS()" id="testBtn">Probar Envío de Email</button>
+
+    <script>
+        // Configuración de EmailJS (debe coincidir con la del frontend)
+        const EMAILJS_CONFIG = {
+            serviceId: 'service_3m1zzb7',
+            templateIdCustomer: 'template_15du32t',
+            templateIdVendor: 'template_2p9q8l6',
+            publicKey: 'c7NApXMmxX3q0Faeh'
+        };
+
+        // Inicializar EmailJS
+        emailjs.init(EMAILJS_CONFIG.publicKey);
+
+        function log(message) {
+            console.log(message);
+            document.getElementById('status').innerHTML += '<br>' + message;
+        }
+
+        async function testEmailJS() {
+            log('🔧 Iniciando test de EmailJS...');
+
+            // Verificar configuración
+            log('📋 Configuración:');
+            log(`- Service ID: ${EMAILJS_CONFIG.serviceId}`);
+            log(`- Template Customer: ${EMAILJS_CONFIG.templateIdCustomer}`);
+            log(`- Template Vendor: ${EMAILJS_CONFIG.templateIdVendor}`);
+            log(`- Public Key: ${EMAILJS_CONFIG.publicKey.substring(0, 10)}...`);
+
+            // Test data
+            const testData = {
+                to_email: 'a997172483a@hotmail.com',
+                customer_name: 'Cliente de Prueba',
+                customer_email: 'a997172483a@hotmail.com',
+                customer_phone: '987654321',
+                customer_dni: '12345678',
+                customer_address: 'Dirección de prueba',
+                customer_city: 'Lima',
+                order_id: 'ORD-TEST-123',
+                payment_date: 'Test Payment Date',
+                total_amount: '100.00',
+                delivery_address: 'Dirección de entrega',
+                delivery_date: 'Por confirmar',
+                special_instructions: 'Ninguna',
+                shipping_type: 'Envío a domicilio',
+                date_label: 'Fecha de entrega',
+                date_value: 'Por confirmar',
+                address_label: 'Dirección de entrega',
+                address_value: 'Dirección de entrega',
+                items_list: '• Ramo de rosas - Cantidad: 1 - Precio: S/ 100.00'
+            };
+
+            try {
+                log('📧 Intentando enviar email al cliente...');
+
+                const result = await emailjs.send(
+                    EMAILJS_CONFIG.serviceId,
+                    EMAILJS_CONFIG.templateIdCustomer,
+                    testData
+                );
+
+                log('✅ ¡Email enviado exitosamente!');
+                log(`📋 Resultado: ${JSON.stringify(result, null, 2)}`);
+
+            } catch (error) {
+                log('❌ Error enviando email:');
+                log(`📋 Error: ${JSON.stringify(error, null, 2)}`);
+
+                // Debug adicional
+                if (error.text) {
+                    log(`📝 Texto del error: ${error.text}`);
+                }
+                if (error.status) {
+                    log(`📊 Status: ${error.status}`);
+                }
+            }
+        }
+
+        // Auto-test al cargar la página
+        document.addEventListener('DOMContentLoaded', function() {
+            log('✅ Página cargada, EmailJS inicializado');
+            log('👆 Haz clic en el botón para probar el envío');
+        });
+    </script>
+</body>
+</html>
