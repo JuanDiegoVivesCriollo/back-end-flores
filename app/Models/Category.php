@@ -4,13 +4,21 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Category extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'name', 'slug', 'description', 'image', 'is_active', 'sort_order'
+        'name',
+        'slug',
+        'description',
+        'image',
+        'icon',
+        'color',
+        'is_active',
+        'sort_order'
     ];
 
     protected $casts = [
@@ -18,8 +26,19 @@ class Category extends Model
         'sort_order' => 'integer',
     ];
 
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($category) {
+            if (empty($category->slug)) {
+                $category->slug = Str::slug($category->name);
+            }
+        });
+    }
+
     /**
-     * Flowers relationship (single - for backward compatibility)
+     * Flowers relationship
      */
     public function flowers()
     {
@@ -27,7 +46,7 @@ class Category extends Model
     }
 
     /**
-     * Flowers relationship (multiple through pivot table)
+     * Many-to-many flowers relationship
      */
     public function flowersMultiple()
     {
@@ -41,14 +60,6 @@ class Category extends Model
     public function activeFlowers()
     {
         return $this->flowers()->where('is_active', true);
-    }
-
-    /**
-     * Get active flowers in this category (multiple relationship)
-     */
-    public function activeFlowersMultiple()
-    {
-        return $this->flowersMultiple()->where('is_active', true);
     }
 
     /**

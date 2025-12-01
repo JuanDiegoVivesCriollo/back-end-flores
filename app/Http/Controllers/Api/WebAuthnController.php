@@ -659,4 +659,3 @@ class WebAuthnController extends Controller
         }
     }
 }
-

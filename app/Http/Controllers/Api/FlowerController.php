@@ -4,527 +4,246 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Flower;
+use App\Models\Category;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 
 class FlowerController extends Controller
 {
     /**
-     * Display a listing of flowers
+     * Get all flowers with filters
      */
     public function index(Request $request)
     {
-        try {
-            $query = Flower::with(['category', 'categories']); // Cargar tanto la categoría individual como múltiples
+        $query = Flower::with(['category', 'flowerTypes'])->active();
 
-            // Filter by category
-            if ($request->has('category_id')) {
-                $query->where('category_id', $request->category_id);
-            }
-
-            // Filter by featured
-            if ($request->has('featured') && $request->featured) {
-                $query->where('is_featured', true);
-            }
-
-            // Filter by on sale
-            if ($request->has('on_sale') && $request->on_sale) {
-                $query->where('is_on_sale', true);
-            }
-
-            // Filter by in stock
-            if ($request->has('in_stock') && $request->in_stock) {
-                $query->where('stock', '>', 0);
-            }
-
-            // Filter by active status
-            if ($request->has('active')) {
-                if ($request->active) {
-                    $query->where('is_active', true);
-                } else {
-                    $query->where('is_active', false);
-                }
-            }
-
-            // Search by name or description
-            if ($request->has('search')) {
-                $search = $request->search;
-                $query->where(function($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                      ->orWhere('description', 'like', "%{$search}%");
-                });
-            }
-
-            // Price range filter
-            if ($request->has('min_price')) {
-                $query->where('price', '>=', $request->min_price);
-            }
-            if ($request->has('max_price')) {
-                $query->where('price', '<=', $request->max_price);
-            }
-
-            // Color filter
-            if ($request->has('color')) {
-                $query->where('color', 'like', "%{$request->color}%");
-            }
-
-            // Occasion filter
-            if ($request->has('occasion')) {
-                $query->where('occasion', 'like', "%{$request->occasion}%");
-            }
-
-            // Metadata filter for condolencias subfiltros
-            if ($request->has('tipo_condolencia')) {
-                $query->whereJsonContains('metadata->tipo_condolencia', $request->tipo_condolencia);
-            }
-
-            // Sorting
-            $sortBy = $request->get('sort_by', 'sort_order');
-            $sortDirection = $request->get('sort_direction', 'asc');
-
-            if ($sortBy === 'price') {
-                $query->orderBy('price', $sortDirection);
-            } elseif ($sortBy === 'name') {
-                $query->orderBy('name', $sortDirection);
-            } elseif ($sortBy === 'rating') {
-                $query->orderBy('rating', $sortDirection);
-            } elseif ($sortBy === 'created_at') {
-                $query->orderBy('created_at', $sortDirection);
-            } else {
-                $query->orderBy('sort_order', 'asc');
-            }
-
-            // Pagination
-            $perPage = $request->get('per_page', 12);
-            $flowers = $query->paginate($perPage);
-
-            return response()->json([
-                'success' => true,
-                'data' => $flowers->items(),
-                'pagination' => [
-                    'current_page' => $flowers->currentPage(),
-                    'last_page' => $flowers->lastPage(),
-                    'per_page' => $flowers->perPage(),
-                    'total' => $flowers->total(),
-                    'from' => $flowers->firstItem(),
-                    'to' => $flowers->lastItem(),
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch flowers',
-                'error' => $e->getMessage()
-            ], 500);
+        // Filter by category
+        if ($request->has('category_id') && $request->category_id) {
+            $query->where('category_id', $request->category_id);
         }
-    }
 
-    /**
-     * Display the specified flower
-     */
-    public function show($id)
-    {
-        try {
-            $flower = Flower::findOrFail($id);
-
-            // Increment views
-            $flower->increment('views');
-
-            return response()->json([
-                'success' => true,
-                'data' => $flower
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Flower not found',
-                'error' => $e->getMessage()
-            ], 404);
+        // Filter by color
+        if ($request->has('color') && $request->color && $request->color !== 'Todos') {
+            $query->where('color', $request->color);
         }
+
+        // Filter by occasion
+        if ($request->has('occasion') && $request->occasion && $request->occasion !== 'Todas') {
+            $query->where('occasion', $request->occasion);
+        }
+
+        // Filter by price range
+        if ($request->has('min_price')) {
+            $query->where('price', '>=', $request->min_price);
+        }
+        if ($request->has('max_price')) {
+            $query->where('price', '<=', $request->max_price);
+        }
+
+        // Search by name
+        if ($request->has('search') && $request->search) {
+            $query->where(function ($q) use ($request) {
+                $q->where('name', 'like', '%' . $request->search . '%')
+                  ->orWhere('description', 'like', '%' . $request->search . '%');
+            });
+        }
+
+        // Filter featured
+        if ($request->has('featured') && $request->featured) {
+            $query->featured();
+        }
+
+        // Filter on sale
+        if ($request->has('on_sale') && $request->on_sale) {
+            $query->onSale();
+        }
+
+        // Sorting
+        $sortBy = $request->get('sort_by', 'popular');
+        switch ($sortBy) {
+            case 'price-asc':
+                $query->orderBy('price', 'asc');
+                break;
+            case 'price-desc':
+                $query->orderBy('price', 'desc');
+                break;
+            case 'rating':
+                $query->orderBy('rating', 'desc');
+                break;
+            case 'newest':
+                $query->orderBy('created_at', 'desc');
+                break;
+            case 'popular':
+            default:
+                $query->orderBy('views', 'desc')->orderBy('rating', 'desc');
+                break;
+        }
+
+        // Pagination
+        $perPage = min($request->get('per_page', 20), 100);
+        $flowers = $query->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => $flowers->items(),
+            'meta' => [
+                'current_page' => $flowers->currentPage(),
+                'last_page' => $flowers->lastPage(),
+                'per_page' => $flowers->perPage(),
+                'total' => $flowers->total(),
+            ]
+        ]);
     }
 
     /**
      * Get featured flowers
      */
-    public function featured(Request $request)
+    public function featured()
     {
-        try {
-            $limit = $request->get('limit', 8);
-
-            $flowers = Flower::where('is_featured', true)
-                ->where('is_active', true)
+        $flowers = Cache::remember('featured_flowers', 300, function () {
+            return Flower::with(['category', 'flowerTypes'])
+                ->active()
+                ->featured()
                 ->orderBy('sort_order', 'asc')
-                ->limit($limit)
+                ->limit(12)
                 ->get();
+        });
 
-            return response()->json([
-                'success' => true,
-                'data' => $flowers
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch featured flowers',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'data' => $flowers
+        ]);
     }
 
     /**
      * Get flowers on sale
      */
-    public function onSale(Request $request)
+    public function onSale()
     {
-        try {
-            $limit = $request->get('limit', 8);
-
-            $flowers = Flower::where('is_on_sale', true)
-                ->where('is_active', true)
-                ->orderBy('sort_order', 'asc')
-                ->limit($limit)
+        $flowers = Cache::remember('flowers_on_sale', 300, function () {
+            return Flower::with(['category', 'flowerTypes'])
+                ->active()
+                ->onSale()
+                ->orderBy('discount_percentage', 'desc')
+                ->limit(20)
                 ->get();
+        });
 
-            return response()->json([
-                'success' => true,
-                'data' => $flowers
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch flowers on sale',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get flower categories for filters
-     */
-    public function getCategories()
-    {
-        try {
-            $categories = [
-                [
-                    'id' => 1,
-                    'name' => 'Rosas',
-                    'description' => 'Hermosas rosas para toda ocasión'
-                ],
-                [
-                    'id' => 2,
-                    'name' => 'Tulipanes',
-                    'description' => 'Tulipanes frescos y coloridos'
-                ],
-                [
-                    'id' => 3,
-                    'name' => 'Girasoles',
-                    'description' => 'Girasoles brillantes y alegres'
-                ],
-                [
-                    'id' => 4,
-                    'name' => 'Orquídeas',
-                    'description' => 'Orquídeas elegantes y exóticas'
-                ],
-                [
-                    'id' => 5,
-                    'name' => 'Lirios',
-                    'description' => 'Lirios fragantes y sofisticados'
-                ],
-                [
-                    'id' => 6,
-                    'name' => 'Claveles',
-                    'description' => 'Claveles duraderos y vibrantes'
-                ],
-                [
-                    'id' => 7,
-                    'name' => 'Gerberas',
-                    'description' => 'Gerberas coloridas y alegres'
-                ],
-                [
-                    'id' => 8,
-                    'name' => 'Lilies',
-                    'description' => 'Lilies elegantes y aromáticos'
-                ],
-                [
-                    'id' => 9,
-                    'name' => 'Mixtas',
-                    'description' => 'Arreglos florales mixtos'
-                ]
-            ];
-
-            return response()->json([
-                'success' => true,
-                'data' => $categories
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch flower categories',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    // Admin methods (crear, actualizar, eliminar)
-    public function store(Request $request)
-    {
-        \Log::info('🌸 FLOWER STORE ATTEMPT:', $request->all());
-
-        try {
-            // Validación básica y robusta
-            $rules = [
-                'name' => 'required|string|max:255',
-                'description' => 'required|string',
-                'price' => 'required|numeric|min:0',
-                'category_ids' => 'required|array|min:1', // Cambiar a array de categorías
-                'category_ids.*' => 'integer|exists:categories,id', // Validar cada categoría
-                'color' => 'required|string|max:255',
-                'occasion' => 'required|string|max:255',
-                'stock' => 'required|integer|min:0',
-                'images' => 'required|array|min:1'
-            ];
-
-            $validator = Validator::make($request->all(), $rules);
-
-            if ($validator->fails()) {
-                \Log::warning('🌸 VALIDATION FAILED:', $validator->errors()->toArray());
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            // Preparar datos para inserción
-            $data = [
-                'name' => $request->name,
-                'description' => $request->description,
-                'short_description' => $request->short_description ?? $request->description,
-                'price' => floatval($request->price),
-                'original_price' => floatval($request->original_price ?? $request->price),
-                'discount_percentage' => intval($request->discount_percentage ?? 0),
-                'category_id' => intval($request->category_ids[0]), // Mantener por compatibilidad (primera categoría)
-                'color' => $request->color,
-                'occasion' => $request->occasion,
-                'stock' => intval($request->stock),
-                'images' => json_encode($request->images),
-                'slug' => $this->generateUniqueSlug($request->name),
-                'sku' => $this->generateUniqueSku(),
-                'rating' => 5.0,
-                'reviews_count' => 0,
-                'is_featured' => boolval($request->is_featured ?? false),
-                'is_on_sale' => boolval($request->is_on_sale ?? true),
-                'is_active' => true,
-                'views' => 0,
-                'sort_order' => 1,
-                'metadata' => json_encode($request->metadata ?? [])
-            ];
-
-            \Log::info('🌸 DATA PREPARED:', $data);
-
-            // Crear la flor
-            $flower = Flower::create($data);
-
-            // Asociar múltiples categorías
-            $flower->categories()->attach($request->category_ids);
-
-            // Cargar las relaciones para la respuesta
-            $flower->load(['category', 'categories']);
-
-            \Log::info('🌸 FLOWER CREATED:', ['id' => $flower->id, 'name' => $flower->name, 'categories' => $flower->categories->pluck('name')]);
-
-            return response()->json([
-                'success' => true,
-                'data' => $flower,
-                'message' => 'Flower created successfully'
-            ], 201);
-
-        } catch (\Exception $e) {
-            \Log::error('🌸 STORE ERROR:', [
-                'message' => $e->getMessage(),
-                'line' => $e->getLine(),
-                'file' => $e->getFile(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Internal server error: ' . $e->getMessage(),
-                'error_details' => [
-                    'line' => $e->getLine(),
-                    'file' => basename($e->getFile())
-                ]
-            ], 500);
-        }
-    }
-
-    public function update(Request $request, $id)
-    {
-        $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'description' => 'sometimes|string',
-            'price' => 'sometimes|numeric|min:0',
-            'category_ids' => 'sometimes|array|min:1', // Cambiar a array de categorías
-            'category_ids.*' => 'integer|exists:categories,id', // Validar cada categoría
-            'color' => 'sometimes|string|max:255',
-            'occasion' => 'sometimes|string|max:255',
-            'stock' => 'sometimes|integer|min:0',
-            'images' => 'sometimes|array|min:1',
-            'images.*' => 'string'
+        return response()->json([
+            'success' => true,
+            'data' => $flowers
         ]);
+    }
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation errors',
-                'errors' => $validator->errors()
-            ], 422);
-        }
+    /**
+     * Get single flower
+     */
+    public function show($id)
+    {
+        $flower = Flower::with(['category', 'flowerTypes'])->findOrFail($id);
+        
+        // Increment views
+        $flower->incrementViews();
 
-        try {
-            $flower = Flower::findOrFail($id);
+        return response()->json([
+            'success' => true,
+            'data' => $flower
+        ]);
+    }
 
-            // Actualizar datos básicos
-            $updateData = $request->except(['category_ids']);
+    /**
+     * Get flowers by category
+     */
+    public function byCategory($categoryId)
+    {
+        $flowers = Flower::with(['category', 'flowerTypes'])
+            ->active()
+            ->where('category_id', $categoryId)
+            ->orderBy('sort_order', 'asc')
+            ->get();
 
-            // Si se envían categorías, actualizar también category_id por compatibilidad
-            if ($request->has('category_ids')) {
-                $updateData['category_id'] = $request->category_ids[0];
-            }
+        return response()->json([
+            'success' => true,
+            'data' => $flowers
+        ]);
+    }
 
-            $flower->update($updateData);
+    /**
+     * Get available colors
+     */
+    public function getColors()
+    {
+        $colors = Flower::active()
+            ->distinct()
+            ->pluck('color')
+            ->filter()
+            ->values();
 
-            // Actualizar múltiples categorías si se enviaron
-            if ($request->has('category_ids')) {
-                $flower->categories()->sync($request->category_ids);
-            }
+        return response()->json([
+            'success' => true,
+            'data' => $colors
+        ]);
+    }
 
-            // Cargar las relaciones para la respuesta
-            $flower->load(['category', 'categories']);
+    /**
+     * Get available occasions
+     */
+    public function getOccasions()
+    {
+        $occasions = Flower::active()
+            ->distinct()
+            ->pluck('occasion')
+            ->filter()
+            ->values();
 
+        return response()->json([
+            'success' => true,
+            'data' => $occasions
+        ]);
+    }
+
+    /**
+     * Search flowers
+     */
+    public function search(Request $request)
+    {
+        $query = $request->get('q', '');
+        
+        if (strlen($query) < 2) {
             return response()->json([
                 'success' => true,
-                'data' => $flower,
-                'message' => 'Flower updated successfully'
+                'data' => []
             ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to update flower',
-                'error' => $e->getMessage()
-            ], 500);
         }
-    }
 
-    public function destroy($id)
-    {
-        try {
-            \Log::info("🗑️ Attempting to delete flower with ID: {$id}");
+        $flowers = Flower::with(['category', 'flowerTypes'])
+            ->active()
+            ->where(function ($q) use ($query) {
+                $q->where('name', 'like', '%' . $query . '%')
+                  ->orWhere('description', 'like', '%' . $query . '%')
+                  ->orWhere('color', 'like', '%' . $query . '%');
+            })
+            ->limit(10)
+            ->get();
 
-            // Verificar que la flor existe usando withTrashed para incluir las ya eliminadas
-            $flower = Flower::withTrashed()->find($id);
-
-            if (!$flower) {
-                \Log::warning("Flower {$id} not found in database");
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Flower not found'
-                ], 404);
-            }
-
-            // Si ya está eliminada (soft deleted), enviar mensaje específico
-            if ($flower->trashed()) {
-                \Log::info("Flower {$id} is already deleted");
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Flower was already deleted'
-                ]);
-            }
-
-            \Log::info("🖼️ Processing images for flower: {$flower->name}");
-
-            // Eliminar imágenes físicas primero
-            if (!empty($flower->images)) {
-                $images = is_string($flower->images) ? json_decode($flower->images, true) : $flower->images;
-                if (is_array($images)) {
-                    foreach ($images as $imageUrl) {
-                        if (!empty($imageUrl)) {
-                            // Convertir URL a path del storage
-                            $imagePath = str_replace('/storage/', '', $imageUrl);
-                            if (Storage::disk('public')->exists($imagePath)) {
-                                Storage::disk('public')->delete($imagePath);
-                                \Log::info("✅ Deleted image: {$imagePath}");
-                            } else {
-                                \Log::info("⚠️ Image not found on disk: {$imagePath}");
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Usar soft delete
-            $deleted = $flower->delete();
-
-            if ($deleted) {
-                \Log::info("✅ Flower {$id} ({$flower->name}) deleted successfully");
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Flower deleted successfully'
-                ]);
-            } else {
-                \Log::error("❌ Failed to delete flower {$id} - delete() returned false");
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to delete flower - database operation failed'
-                ], 500);
-            }
-
-        } catch (\Exception $e) {
-            \Log::error("❌ Error deleting flower {$id}: " . $e->getMessage());
-            \Log::error("Stack trace: " . $e->getTraceAsString());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to delete flower',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'data' => $flowers
+        ]);
     }
 
     /**
-     * Generate unique slug for flower
+     * Get all flower types
      */
-    private function generateUniqueSlug($name)
+    public function getFlowerTypes()
     {
-        $slug = \Illuminate\Support\Str::slug($name);
-        $originalSlug = $slug;
-        $counter = 1;
+        $types = \App\Models\FlowerType::active()
+            ->orderBy('sort_order', 'asc')
+            ->get();
 
-        // Solo verificar flores que NO están soft-deleted
-        while (Flower::whereNull('deleted_at')->where('slug', $slug)->exists()) {
-            $slug = $originalSlug . '-' . $counter;
-            $counter++;
-        }
-
-        return $slug;
-    }
-
-    /**
-     * Generate unique SKU for flower
-     */
-    private function generateUniqueSku()
-    {
-        do {
-            $sku = 'FL-' . time() . '-' . rand(100, 999);
-        } while (Flower::whereNull('deleted_at')->where('sku', $sku)->exists());
-
-        return $sku;
+        return response()->json([
+            'success' => true,
+            'data' => $types
+        ]);
     }
 }

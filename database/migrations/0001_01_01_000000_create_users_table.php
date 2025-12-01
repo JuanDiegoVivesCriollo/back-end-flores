@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
@@ -17,13 +14,12 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            $table->string('phone')->nullable();
-            $table->enum('role', ['admin', 'user'])->default('user');
-            $table->text('address')->nullable();
-            $table->string('city')->nullable();
-            $table->string('postal_code')->nullable();
+            $table->string('phone', 20)->nullable();
+            $table->string('address', 500)->nullable();
+            $table->string('city', 100)->nullable();
+            $table->string('postal_code', 20)->nullable();
+            $table->enum('role', ['user', 'admin', 'super_admin'])->default('user');
             $table->boolean('is_active')->default(true);
-            $table->timestamp('last_login_at')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });
@@ -44,13 +40,10 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
+        Schema::dropIfExists('password_reset_tokens');
+        Schema::dropIfExists('users');
     }
 };

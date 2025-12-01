@@ -11,47 +11,48 @@ class Payment extends Model
 
     protected $fillable = [
         'order_id',
-        'payment_method',
+        'direct_payment_order_id',
         'transaction_id',
-        'payment_status',
+        'session_token',
+        'payment_method',
+        'payment_gateway',
         'amount',
         'currency',
-        'payment_details',
-        'paid_at',
-        'failure_reason',
-        'session_token', // Field is now available in database schema
         'status',
-        'metadata' // Re-enabled since JSON column type is fixed
+        'gateway_response',
+        'payment_details',
+        'metadata',
+        'paid_at',
+        'expires_at'
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'gateway_response' => 'array',
         'payment_details' => 'array',
         'metadata' => 'array',
         'paid_at' => 'datetime',
+        'expires_at' => 'datetime',
     ];
 
-    // Payment status constants
+    // Payment statuses
     const STATUS_PENDING = 'pending';
     const STATUS_PROCESSING = 'processing';
     const STATUS_COMPLETED = 'completed';
     const STATUS_FAILED = 'failed';
     const STATUS_CANCELLED = 'cancelled';
     const STATUS_REFUNDED = 'refunded';
-    const STATUS_PARTIAL_REFUND = 'partial_refund';
 
-    // Payment method constants
-    const METHOD_IZIPAY = 'izipay';
-    const METHOD_CASH = 'cash_on_delivery';
-    const METHOD_TRANSFER = 'bank_transfer';
+    // Payment methods
+    const METHOD_CARD = 'card';
+    const METHOD_TRANSFER = 'transfer';
+    const METHOD_CASH = 'cash';
+    const METHOD_YAPE = 'yape';
+    const METHOD_PLIN = 'plin';
 
-    /**
-     * Check if payment is completed
-     */
-    public function isCompleted(): bool
-    {
-        return $this->payment_status === self::STATUS_COMPLETED;
-    }
+    // Payment gateways
+    const GATEWAY_IZIPAY = 'izipay';
+    const GATEWAY_MANUAL = 'manual';
 
     /**
      * Order relationship
@@ -62,67 +63,72 @@ class Payment extends Model
     }
 
     /**
+     * Direct payment order relationship
+     */
+    public function directPaymentOrder()
+    {
+        return $this->belongsTo(DirectPaymentOrder::class);
+    }
+
+    /**
+     * Check if payment is completed
+     */
+    public function isCompleted()
+    {
+        return $this->status === self::STATUS_COMPLETED;
+    }
+
+    /**
      * Check if payment is pending
      */
-    public function isPending(): bool
+    public function isPending()
     {
         return $this->status === self::STATUS_PENDING;
     }
 
     /**
-     * Check if payment is failed
+     * Check if payment has expired
      */
-    public function isFailed(): bool
+    public function hasExpired()
     {
-        return $this->status === self::STATUS_FAILED;
+        return $this->expires_at && $this->expires_at->isPast();
     }
 
     /**
      * Mark payment as completed
      */
-    public function markAsCompleted(array $gatewayResponse = []): void
+    public function markAsCompleted($transactionId = null, $gatewayResponse = null)
     {
         $this->update([
             'status' => self::STATUS_COMPLETED,
-            'gateway_response' => $gatewayResponse,
-            'paid_at' => now()
+            'transaction_id' => $transactionId ?? $this->transaction_id,
+            'gateway_response' => $gatewayResponse ?? $this->gateway_response,
+            'paid_at' => now(),
         ]);
+
+        // Update order payment status
+        if ($this->order) {
+            $this->order->update(['payment_status' => Order::PAYMENT_PAID]);
+        }
+
+        return $this;
     }
 
     /**
      * Mark payment as failed
      */
-    public function markAsFailed(string $reason = '', array $gatewayResponse = []): void
+    public function markAsFailed($gatewayResponse = null)
     {
         $this->update([
             'status' => self::STATUS_FAILED,
-            'failure_reason' => $reason,
-            'gateway_response' => $gatewayResponse,
-            'failed_at' => now()
+            'gateway_response' => $gatewayResponse ?? $this->gateway_response,
         ]);
-    }
 
-    /**
-     * Scope for completed payments
-     */
-    public function scopeCompleted($query)
-    {
-        return $query->where('status', self::STATUS_COMPLETED);
-    }
+        // Update order payment status
+        if ($this->order) {
+            $this->order->update(['payment_status' => Order::PAYMENT_FAILED]);
+        }
 
-    /**
-     * Scope for pending payments
-     */
-    public function scopePending($query)
-    {
-        return $query->where('status', self::STATUS_PENDING);
-    }
-
-    /**
-     * Scope for failed payments
-     */
-    public function scopeFailed($query)
-    {
-        return $query->where('status', self::STATUS_FAILED);
+        return $this;
     }
 }

@@ -5,117 +5,92 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\DeliveryDistrict;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class DeliveryController extends Controller
 {
     /**
-     * Get all active delivery districts
+     * Get all delivery districts
      */
     public function getDistricts()
     {
-        try {
-            $districts = DeliveryDistrict::active()
-                                        ->orderBy('zone')
-                                        ->orderBy('name')
-                                        ->get();
+        $districts = Cache::remember('delivery_districts', 3600, function () {
+            return DeliveryDistrict::active()
+                ->ordered()
+                ->get(['id', 'name', 'zone', 'shipping_cost', 'estimated_time']);
+        });
 
-            return response()->json([
-                'success' => true,
-                'data' => $districts
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al obtener distritos',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'data' => $districts
+        ]);
     }
 
     /**
-     * Get districts grouped by zone
+     * Calculate shipping cost
      */
-    public function getDistrictsByZone()
-    {
-        try {
-            $districts = DeliveryDistrict::getByZone();
-
-            return response()->json([
-                'success' => true,
-                'data' => $districts
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al obtener distritos por zona',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get shipping cost for a specific district
-     */
-    public function getShippingCost(Request $request)
+    public function calculateShipping(Request $request)
     {
         $request->validate([
-            'district' => 'required|string|max:100'
+            'district' => 'required|string',
         ]);
 
-        try {
-            $district = $request->district;
-            $shippingCost = DeliveryDistrict::getShippingCost($district);
-            $isAvailable = DeliveryDistrict::isAvailable($district);
+        $district = DeliveryDistrict::where('name', $request->district)
+            ->orWhere('slug', $request->district)
+            ->first();
 
+        if (!$district) {
+            // Default shipping cost for unknown districts
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'district' => $district,
-                    'shipping_cost' => $shippingCost,
-                    'is_available' => $isAvailable,
-                    'formatted_cost' => 'S/. ' . number_format($shippingCost, 2)
+                    'district' => $request->district,
+                    'shipping_cost' => 20.00,
+                    'estimated_time' => '2-3 horas',
+                    'note' => 'Distrito fuera de zona de cobertura regular'
                 ]
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al calcular costo de envío',
-                'error' => $e->getMessage()
-            ], 500);
         }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'district' => $district->name,
+                'zone' => $district->zone,
+                'shipping_cost' => $district->shipping_cost,
+                'estimated_time' => $district->estimated_time,
+            ]
+        ]);
     }
 
     /**
-     * Check if delivery is available for district
+     * Check if district has free shipping
      */
-    public function checkAvailability(Request $request)
+    public function checkFreeShipping(Request $request)
     {
         $request->validate([
-            'district' => 'required|string|max:100'
+            'district' => 'required|string',
+            'total' => 'required|numeric|min:0',
         ]);
 
-        try {
-            $district = $request->district;
-            $isAvailable = DeliveryDistrict::isAvailable($district);
-            $shippingCost = $isAvailable ? DeliveryDistrict::getShippingCost($district) : 0;
+        $district = DeliveryDistrict::where('name', $request->district)->first();
+        
+        // Free shipping for orders over S/150 in main zones
+        $freeShippingMinimum = 150;
+        $eligibleZones = ['zona_1', 'zona_2'];
+        
+        $hasFreeShipping = $request->total >= $freeShippingMinimum && 
+                          $district && 
+                          in_array($district->zone, $eligibleZones);
 
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'district' => $district,
-                    'is_available' => $isAvailable,
-                    'shipping_cost' => $shippingCost,
-                    'message' => $isAvailable
-                        ? 'Entrega disponible'
-                        : 'Distrito no disponible para entrega'
-                ]
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al verificar disponibilidad',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'has_free_shipping' => $hasFreeShipping,
+                'minimum_for_free_shipping' => $freeShippingMinimum,
+                'current_total' => $request->total,
+                'amount_needed' => max(0, $freeShippingMinimum - $request->total),
+            ]
+        ]);
     }
 }

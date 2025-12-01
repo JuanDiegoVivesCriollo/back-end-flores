@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Complement extends Model
+class Breakfast extends Model
 {
     use HasFactory, SoftDeletes;
 
@@ -14,16 +14,18 @@ class Complement extends Model
         'name',
         'slug',
         'description',
+        'short_description',
         'price',
         'original_price',
         'discount_percentage',
-        'type',
-        'image',
         'images',
+        'items_included',
         'is_active',
         'is_featured',
         'is_on_sale',
         'stock',
+        'preparation_time',
+        'serves',
         'sort_order'
     ];
 
@@ -31,20 +33,16 @@ class Complement extends Model
         'price' => 'decimal:2',
         'original_price' => 'decimal:2',
         'discount_percentage' => 'integer',
+        'images' => 'array',
+        'items_included' => 'array',
         'is_active' => 'boolean',
         'is_featured' => 'boolean',
         'is_on_sale' => 'boolean',
         'stock' => 'integer',
+        'preparation_time' => 'integer',
+        'serves' => 'integer',
         'sort_order' => 'integer',
-        'images' => 'array',
     ];
-
-    // Complement types
-    const TYPE_CHOCOLATE = 'chocolates';
-    const TYPE_STUFFED_ANIMAL = 'peluches';
-    const TYPE_BALLOON = 'globos';
-    const TYPE_CARD = 'tarjetas';
-    const TYPE_DECORATION = 'decoraciones';
 
     /**
      * Order items relationship
@@ -55,7 +53,7 @@ class Complement extends Model
     }
 
     /**
-     * Scope for active complements
+     * Scope for active breakfasts
      */
     public function scopeActive($query)
     {
@@ -63,7 +61,7 @@ class Complement extends Model
     }
 
     /**
-     * Scope for featured complements
+     * Scope for featured breakfasts
      */
     public function scopeFeatured($query)
     {
@@ -71,10 +69,13 @@ class Complement extends Model
     }
 
     /**
-     * Scope by type
+     * Get primary image
      */
-    public function scopeByType($query, $type)
+    public function getPrimaryImageAttribute()
     {
-        return $query->where('type', $type);
+        if (!empty($this->images) && is_array($this->images)) {
+            return $this->images[0] ?? null;
+        }
+        return null;
     }
 }

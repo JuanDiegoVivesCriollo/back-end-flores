@@ -9,52 +9,36 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasApiTokens, HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     */
     protected $fillable = [
         'name',
         'email',
         'password',
         'phone',
-        'role',
         'address',
         'city',
         'postal_code',
+        'role',
         'is_active',
-        'last_login_at',
+        'email_verified_at'
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     */
-    protected function casts(): array
-    {
-        return [
-            'email_verified_at' => 'datetime',
-            'last_login_at' => 'datetime',
-            'password' => 'hashed',
-            'is_active' => 'boolean',
-        ];
-    }
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+        'is_active' => 'boolean',
+    ];
 
-    /**
-     * Check if user is admin
-     */
-    public function isAdmin(): bool
-    {
-        return $this->role === 'admin';
-    }
+    // User roles
+    const ROLE_USER = 'user';
+    const ROLE_ADMIN = 'admin';
+    const ROLE_SUPER_ADMIN = 'super_admin';
 
     /**
      * Orders relationship
@@ -65,27 +49,35 @@ class User extends Authenticatable
     }
 
     /**
-     * Notifications relationship
+     * Check if user is admin
      */
-    public function notifications()
+    public function isAdmin()
     {
-        return $this->hasMany(Notification::class);
+        return in_array($this->role, [self::ROLE_ADMIN, self::ROLE_SUPER_ADMIN]);
     }
 
     /**
-     * Check if user is customer/user
+     * Check if user is super admin
      */
-    public function isCustomer()
+    public function isSuperAdmin()
     {
-        return $this->role === 'user';
+        return $this->role === self::ROLE_SUPER_ADMIN;
     }
 
     /**
-     * Check if user is guest
+     * Scope for active users
      */
-    public function isGuest()
+    public function scopeActive($query)
     {
-        return $this->role === 'guest';
+        return $query->where('is_active', true);
+    }
+
+    /**
+     * Scope for admins
+     */
+    public function scopeAdmins($query)
+    {
+        return $query->whereIn('role', [self::ROLE_ADMIN, self::ROLE_SUPER_ADMIN]);
     }
 
     /**

@@ -51,23 +51,13 @@ class Flower extends Model
         'metadata' => 'array',
     ];
 
-    /**
-     * Boot the model
-     * TEMPORARILY DISABLED - slug generation moved to controller for production stability
-     */
     protected static function boot()
     {
         parent::boot();
 
-        // Eventos boot() temporalmente deshabilitados para resolver errores de producción
-        // La generación de slug ahora se maneja directamente en el controller
-
-        /*
         static::creating(function ($flower) {
             if (empty($flower->slug)) {
                 $flower->slug = Str::slug($flower->name);
-
-                // Ensure slug is unique
                 $originalSlug = $flower->slug;
                 $counter = 1;
                 while (static::where('slug', $flower->slug)->exists()) {
@@ -75,26 +65,16 @@ class Flower extends Model
                     $counter++;
                 }
             }
-        });
-
-        static::updating(function ($flower) {
-            if ($flower->isDirty('name') && empty($flower->slug)) {
-                $flower->slug = Str::slug($flower->name);
-
-                // Ensure slug is unique
-                $originalSlug = $flower->slug;
-                $counter = 1;
-                while (static::where('slug', $flower->slug)->where('id', '!=', $flower->id)->exists()) {
-                    $flower->slug = $originalSlug . '-' . $counter;
-                    $counter++;
-                }
+            
+            // Generar SKU automático si no existe
+            if (empty($flower->sku)) {
+                $flower->sku = 'FDJ-' . strtoupper(Str::random(8));
             }
         });
-        */
     }
 
     /**
-     * Category relationship (single - for backward compatibility)
+     * Category relationship
      */
     public function category()
     {
@@ -102,7 +82,7 @@ class Flower extends Model
     }
 
     /**
-     * Categories relationship (multiple)
+     * Multiple categories relationship
      */
     public function categories()
     {
@@ -119,30 +99,12 @@ class Flower extends Model
     }
 
     /**
-     * Get effective price (discounted price if on sale, otherwise regular price)
+     * Tipos de flores (Rosa, Girasol, Tulipán, etc.)
+     * Un ramo puede tener múltiples tipos de flores
      */
-    public function getEffectivePriceAttribute()
+    public function flowerTypes()
     {
-        if ($this->is_on_sale && $this->discount_percentage > 0) {
-            return $this->price * (1 - $this->discount_percentage / 100);
-        }
-        return $this->price;
-    }
-
-    /**
-     * Get discount percentage if on sale
-     */
-    public function getDiscountPercentageAttribute()
-    {
-        return $this->attributes['discount_percentage'] ?? 0;
-    }
-
-    /**
-     * Check if flower is in stock
-     */
-    public function isInStock()
-    {
-        return $this->stock > 0;
+        return $this->belongsToMany(FlowerType::class, 'flower_flower_type');
     }
 
     /**
@@ -170,42 +132,73 @@ class Flower extends Model
     }
 
     /**
-     * Scope for in stock flowers
+     * Scope by category
      */
-    public function scopeInStock($query)
+    public function scopeByCategory($query, $categoryId)
     {
-        return $query->where('stock', '>', 0);
+        return $query->where('category_id', $categoryId);
     }
 
     /**
-     * Scope for ordered flowers (by sort_order)
+     * Scope by color
      */
-    public function scopeOrdered($query)
+    public function scopeByColor($query, $color)
     {
-        return $query->orderBy('sort_order', 'asc');
+        return $query->where('color', $color);
     }
 
     /**
-     * Accessor simple para obtener la primera imagen (igual que Complement)
+     * Scope by occasion
      */
-    public function getFirstImageAttribute()
+    public function scopeByOccasion($query, $occasion)
     {
-        // Devolver la primera imagen del array de imágenes, igual que Complement
-        if (is_array($this->images) && !empty($this->images)) {
-            return $this->images[0];
+        return $query->where('occasion', $occasion);
+    }
+
+    /**
+     * Scope by price range
+     */
+    public function scopeByPriceRange($query, $min, $max)
+    {
+        return $query->whereBetween('price', [$min, $max]);
+    }
+
+    /**
+     * Get primary image URL
+     */
+    public function getPrimaryImageAttribute()
+    {
+        if (!empty($this->images) && is_array($this->images)) {
+            return $this->images[0] ?? null;
         }
-        return null; // Retornar null en lugar de placeholder
+        return null;
     }
 
     /**
-     * Accessor simple para URLs de imágenes (igual que Complement)
+     * Calculate discount
      */
-    public function getImageUrlsAttribute()
+    public function getDiscountAmountAttribute()
     {
-        // Devolver las imágenes tal como están, igual que Complement
-        if (is_array($this->images) && !empty($this->images)) {
-            return $this->images;
+        if ($this->original_price && $this->original_price > $this->price) {
+            return $this->original_price - $this->price;
         }
-        return [];
+        return 0;
+    }
+
+    /**
+     * Check if has discount
+     */
+    public function getHasDiscountAttribute()
+    {
+        return $this->discount_percentage > 0 || 
+               ($this->original_price && $this->original_price > $this->price);
+    }
+
+    /**
+     * Increment view count
+     */
+    public function incrementViews()
+    {
+        $this->increment('views');
     }
 }

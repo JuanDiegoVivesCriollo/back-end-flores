@@ -13,21 +13,30 @@ class OrderItem extends Model
         'order_id',
         'flower_id',
         'complement_id',
+        'breakfast_id',
         'item_type',
-        'flower_name',
+        'name',
         'quantity',
         'price',
-        'total'
+        'total',
+        'options',
+        'notes'
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
         'total' => 'decimal:2',
-        'quantity' => 'integer'
+        'quantity' => 'integer',
+        'options' => 'array',
     ];
 
+    // Item types
+    const TYPE_FLOWER = 'flower';
+    const TYPE_COMPLEMENT = 'complement';
+    const TYPE_BREAKFAST = 'breakfast';
+
     /**
-     * Get the order that owns the order item
+     * Order relationship
      */
     public function order()
     {
@@ -35,7 +44,7 @@ class OrderItem extends Model
     }
 
     /**
-     * Get the flower for this order item
+     * Flower relationship
      */
     public function flower()
     {
@@ -43,7 +52,7 @@ class OrderItem extends Model
     }
 
     /**
-     * Get the complement for this order item
+     * Complement relationship
      */
     public function complement()
     {
@@ -51,28 +60,39 @@ class OrderItem extends Model
     }
 
     /**
-     * Get the product (flower or complement) for this order item
+     * Breakfast relationship
      */
-    public function getProductAttribute()
+    public function breakfast()
     {
-        if ($this->item_type === 'flower') {
-            return $this->flower;
-        } elseif ($this->item_type === 'complement') {
-            return $this->complement;
-        }
-        return null;
+        return $this->belongsTo(Breakfast::class);
     }
 
     /**
-     * Get the product name for this order item
+     * Get the item (polymorphic)
      */
-    public function getProductNameAttribute()
+    public function getItemAttribute()
     {
-        if ($this->item_type === 'flower') {
-            return $this->flower ? $this->flower->name : $this->flower_name;
-        } elseif ($this->item_type === 'complement') {
-            return $this->complement ? $this->complement->name : 'Complemento';
+        switch ($this->item_type) {
+            case self::TYPE_FLOWER:
+                return $this->flower;
+            case self::TYPE_COMPLEMENT:
+                return $this->complement;
+            case self::TYPE_BREAKFAST:
+                return $this->breakfast;
+            default:
+                return null;
         }
-        return $this->flower_name; // Fallback for backward compatibility
+    }
+
+    /**
+     * Calculate total before save
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::saving(function ($item) {
+            $item->total = $item->price * $item->quantity;
+        });
     }
 }
